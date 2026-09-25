@@ -7,7 +7,7 @@
   <meta name="description" content="TernaryLM: Memory-Efficient Language Modeling via Native 1.5-Bit Quantization with Adaptive Layer-wise Scaling. GlobalSouthAI Workshop @ NeurIPS 2026.">
   <meta property="og:title" content="TernaryLM: Memory-Efficient Language Modeling via Native 1.5-Bit Quantization">
   <meta property="og:description" content="A 132M-parameter transformer trained natively with ternary weights on a single GPU in 1.3 GPU-hours. GlobalSouthAI @ NeurIPS 2026.">
-  <meta property="og:image" content="static/images/ppl_curves.png">
+  <meta property="og:image" content="images/ppl_curves.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
@@ -203,7 +203,7 @@
       linear layers. It uses the same data, data order, schedule and seed.
     </p>
     <figure>
-      <img src="static/images/architecture.png" alt="TernaryLM architecture: pipeline and transformer block with ternary projections">
+      <img src="images/architecture.png" alt="TernaryLM architecture: pipeline and transformer block with ternary projections">
       <figcaption><b>Architecture.</b> (a) End-to-end pipeline. (b) One pre-norm transformer block; dashed lines are residual
         connections. All seven projections (blue) are ternary, each with its own scale α. The embedding and the untied output
         projection (purple) remain FP32. 12 layers, d = 768, 12 heads, SwiGLU with 2,048 hidden units, RoPE, 512-token context,
@@ -220,7 +220,7 @@
       FP32 twin at every epoch, including the twin's best epoch.
     </p>
     <figure>
-      <img src="static/images/ppl_curves.png" alt="Train and validation perplexity curves for TernaryLM and the FP32 twin">
+      <img src="images/ppl_curves.png" alt="Train and validation perplexity curves for TernaryLM and the FP32 twin">
       <figcaption><b>Training dynamics.</b> (a) The FP32 twin reaches a lower training perplexity but a larger
         train/validation gap. (b) Its validation perplexity rises after epoch 9, while TernaryLM's keeps improving.</figcaption>
     </figure>
@@ -295,7 +295,7 @@
       distribution shape, not sensitivity to quantization.
     </p>
     <figure>
-      <img src="static/images/layer_sparsity.png" alt="Per-block zero-state fraction and its correlation with kurtosis">
+      <img src="images/layer_sparsity.png" alt="Per-block zero-state fraction and its correlation with kurtosis">
       <figcaption><b>Layer-wise zero-state occupancy.</b> (a) Per-block zero fraction (mean and min–max over seven projections)
         against the Gaussian reference. (b) Across blocks, occupancy is almost linearly predicted by excess kurtosis.</figcaption>
     </figure>
@@ -306,7 +306,7 @@
       consistent with straight-through updates oscillating around the decision boundary.
     </p>
     <figure>
-      <img src="static/images/weight_distribution.png" alt="Latent weight distributions at epochs 1, 5, 10 and 15">
+      <img src="images/weight_distribution.png" alt="Latent weight distributions at epochs 1, 5, 10 and 15">
       <figcaption><b>Weight dynamics.</b> Latent weights of block 6's W<sub>down</sub> at epochs 1, 5, 10 and 15. Dotted lines mark ±τ.</figcaption>
     </figure>
   </section>
