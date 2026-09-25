@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TernaryLM: Native 1.58-bit Language Modeling</title>
+  <meta name="description" content="TernaryLM: Memory-Efficient Language Modeling via Native 1.5-Bit Quantization with Adaptive Layer-wise Scaling. GlobalSouthAI Workshop @ NeurIPS 2026.">
+  <meta property="og:title" content="TernaryLM: Memory-Efficient Language Modeling via Native 1.5-Bit Quantization">
+  <meta property="og:description" content="A 132M-parameter transformer trained natively with ternary weights on a single GPU in 1.3 GPU-hours. GlobalSouthAI @ NeurIPS 2026.">
+  <meta property="og:image" content="static/images/ppl_curves.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+          onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'\\(',right:'\\)',display:false}]});"></script>
+  <style>
+    :root {
+      --ink: #1b1f24; --muted: #57606a; --faint: #8b949e; --line: #e4e7eb; --bg: #ffffff; --panel: #f6f8fa;
+      --green: #2a6f3f; --green-soft: #e6f2ea; --blue: #3a6ea5; --blue-soft: #e7eff8; --grey: #555555;
+      --radius: 12px; --maxw: 960px;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.65 "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 20px; }
+
+    /* ---------- hero ---------- */
+    header.hero { text-align: center; padding: 64px 0 28px; }
+    .venue { display: inline-block; font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+             color: var(--green); background: var(--green-soft); padding: 5px 12px; border-radius: 999px; margin-bottom: 22px; }
+    h1.title { font-family: "Source Serif 4", Georgia, serif; font-weight: 700; font-size: clamp(28px, 4.4vw, 44px);
+               line-height: 1.18; margin: 0 auto 8px; max-width: 880px; letter-spacing: -.01em; }
+    .subtitle { font-family: "Source Serif 4", Georgia, serif; font-size: clamp(18px, 2.4vw, 23px); color: var(--muted); margin: 0 auto 26px; max-width: 820px; }
+    .authors { font-size: 18px; margin: 0 0 4px; }
+    .authors span { margin: 0 14px; white-space: nowrap; font-weight: 500; }
+    .authors sup, .affils sup { color: var(--faint); font-weight: 400; }
+    .affils { color: var(--muted); font-size: 15px; margin: 0 0 4px; }
+    .affils span { margin: 0 12px; display: inline-block; }
+    .emails { color: var(--faint); font: 13px "JetBrains Mono", monospace; margin: 6px 0 26px; }
+    .buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; border-radius: 999px; font-weight: 600; font-size: 15px;
+           background: #24292f; color: #fff; border: 1px solid #24292f; transition: background .15s, transform .15s; }
+    .btn:hover { background: #3d444d; text-decoration: none; transform: translateY(-1px); }
+    .btn.ghost { background: #fff; color: var(--muted); border-color: var(--line); cursor: default; }
+    .btn.ghost:hover { background: #fff; transform: none; }
+    .btn svg { width: 17px; height: 17px; }
+
+    /* ---------- TL;DR + stats ---------- */
+    .tldr { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px 26px; margin: 34px 0 20px; font-size: 16.5px; }
+    .tldr b { color: var(--green); }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 0 0 8px; }
+    .stat { border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 12px; text-align: center; background: #fff; }
+    .stat .v { font-family: "Source Serif 4", Georgia, serif; font-size: 30px; font-weight: 700; color: var(--green); line-height: 1.1; }
+    .stat .k { font-size: 13px; color: var(--muted); margin-top: 6px; line-height: 1.35; }
+    .stat .s { font-size: 12px; color: var(--faint); }
+
+    /* ---------- sections ---------- */
+    nav.toc { position: sticky; top: 0; z-index: 5; background: rgba(255,255,255,.92); backdrop-filter: blur(6px);
+              border-bottom: 1px solid var(--line); }
+    nav.toc .wrap { display: flex; gap: 22px; overflow-x: auto; padding-top: 10px; padding-bottom: 10px; font-size: 14px; white-space: nowrap; }
+    nav.toc a { color: var(--muted); font-weight: 500; }
+    section { padding: 40px 0 8px; }
+    h2 { font-family: "Source Serif 4", Georgia, serif; font-size: 28px; font-weight: 700; margin: 0 0 16px; letter-spacing: -.005em; }
+    h3 { font-size: 18px; font-weight: 600; margin: 26px 0 8px; }
+    p { margin: 0 0 14px; }
+    .lead { font-size: 17px; }
+    figure { margin: 22px 0 10px; }
+    figure img { width: 100%; height: auto; display: block; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; padding: 10px; }
+    figcaption { font-size: 14px; color: var(--muted); margin-top: 10px; line-height: 1.55; }
+    figcaption b { color: var(--ink); }
+    .eq { background: var(--panel); border-radius: var(--radius); padding: 14px 10px; margin: 16px 0; overflow-x: auto; }
+    .callout { border-left: 3px solid var(--green); background: var(--green-soft); padding: 14px 18px; border-radius: 0 var(--radius) var(--radius) 0; margin: 18px 0; font-size: 15.5px; }
+    .note { border-left: 3px solid #c9a227; background: #fdf7e3; padding: 12px 18px; border-radius: 0 var(--radius) var(--radius) 0; margin: 16px 0; font-size: 15px; }
+
+    /* ---------- tables ---------- */
+    .tbl { overflow-x: auto; margin: 18px 0 6px; }
+    table { border-collapse: collapse; width: 100%; font-size: 15px; font-variant-numeric: tabular-nums; }
+    thead th { text-align: center; font-weight: 600; border-top: 2px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 9px 10px; }
+    tbody td { text-align: center; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+    tbody tr:last-child td { border-bottom: 2px solid var(--ink); }
+    td:first-child, th:first-child { text-align: left; }
+    tr.ours td { font-weight: 600; background: var(--green-soft); }
+    .tcap { font-size: 14px; color: var(--muted); margin-top: 8px; }
+    .best { color: var(--green); font-weight: 700; }
+
+    /* ---------- samples ---------- */
+    .samples { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 16px; }
+    .sample { border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; background: #fff; }
+    .sample .tag { font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+    .sample.t .tag { color: var(--green); } .sample.f .tag { color: var(--grey); }
+    .sample p { font-family: "Source Serif 4", Georgia, serif; font-style: italic; font-size: 15.5px; color: #333; margin: 0; }
+
+    ul.lim { padding-left: 20px; margin: 0; } ul.lim li { margin-bottom: 6px; }
+
+    /* ---------- bibtex ---------- */
+    .bib { position: relative; background: #0f1419; color: #e6edf3; border-radius: var(--radius); padding: 18px 20px; overflow-x: auto;
+           font: 13.5px/1.6 "JetBrains Mono", ui-monospace, monospace; white-space: pre; }
+    .copy { position: absolute; top: 10px; right: 10px; font: 600 12px "Inter", sans-serif; background: #2d333b; color: #e6edf3;
+            border: 1px solid #444c56; border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+    .copy:hover { background: #3d444d; }
+
+    footer { border-top: 1px solid var(--line); margin-top: 48px; padding: 26px 0 40px; text-align: center; color: var(--faint); font-size: 13.5px; }
+
+    @media (max-width: 760px) {
+      .stats { grid-template-columns: repeat(2, 1fr); }
+      .samples { grid-template-columns: 1fr; }
+      header.hero { padding-top: 44px; }
+      .authors span { display: block; margin: 2px 0; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="venue">GlobalSouthAI Workshop @ NeurIPS 2026</div>
+    <h1 class="title">TernaryLM: Memory-Efficient Language Modeling via Native 1.5-Bit Quantization with Adaptive Layer-wise Scaling</h1>
+    <p class="authors">
+      <span>Nisharg Nargund<sup>1</sup></span>
+      <span>Priyesh Shukla<sup>2</sup></span>
+    </p>
+    <p class="affils">
+      <span><sup>1</sup>Kalinga Institute of Industrial Technology</span>
+      <span><sup>2</sup>International Institute of Information Technology Hyderabad</span>
+    </p>
+    <p class="emails">nisarg.nargund@gmail.com &nbsp;·&nbsp; priyesh.shukla@iiit.ac.in</p>
+    <div class="buttons">
+      <a class="btn" href="https://github.com/1nisharg/TernaryLM-NeurIPS" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        Code
+      </a>
+      <span class="btn ghost" title="The camera-ready PDF will be linked here once it is published">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Paper (coming soon)
+      </span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Sections">
+  <div class="wrap">
+    <a href="#abstract">Abstract</a><a href="#method">Method</a><a href="#results">Results</a><a href="#efficiency">Efficiency</a>
+    <a href="#transfer">Transfer</a><a href="#analysis">Analysis</a><a href="#samples">Samples</a><a href="#limitations">Limitations</a><a href="#citation">Citation</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <div class="tldr">
+    <b>TL;DR.</b> We train a 132M-parameter language model <i>natively</i> with ternary weights {−1, 0, +1} on a single GPU
+    in about 1.3 GPU-hours. Under identical settings, it generalizes better than its full-precision twin and needs
+    far less storage and memory.
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="v">5.52</div><div class="k">validation perplexity</div><div class="s">FP32 twin: 5.97</div></div>
+    <div class="stat"><div class="v">1.93×</div><div class="k">smaller on disk than FP32</div><div class="s">2.58× bit-packed</div></div>
+    <div class="stat"><div class="v">5.2×</div><div class="k">less peak inference memory than FP32</div><div class="s">593 MB vs. 3,094 MB</div></div>
+    <div class="stat"><div class="v">1.3 h</div><div class="k">to train on one GPU</div><div class="s">NVIDIA L40S</div></div>
+  </div>
+
+  <section id="abstract">
+    <h2>Abstract</h2>
+    <p class="lead">
+      Large language models demand substantial compute, limiting deployment on edge and resource-constrained hardware.
+      We present TernaryLM, a 132M-parameter decoder-only transformer trained natively with ternary weights {−1, 0, +1}
+      (log<sub>2</sub>3 ≈ 1.58 bits/weight) via a straight-through estimator and learnable per-layer scaling, rather than
+      quantizing a pretrained full-precision model post hoc. Trained on 12.9M TinyStories tokens on a single NVIDIA L40S GPU
+      in 1.3 GPU-hours, TernaryLM reaches a validation perplexity of 5.52. An architecturally identical FP32 twin trained
+      with the same data and schedule fits the training set more closely (train perplexity 2.43 vs. 3.35) but overfits,
+      ending at 5.97 and never dropping below 5.58 at any epoch. Under identical settings, the ternary constraint narrows
+      the train/validation gap (1.65× vs. 2.46×) <i>and</i> improves held-out perplexity, consistent with regularization
+      rather than underfitting (single seed). Exported with int8 ternary codes and one FP32 scale per projection, TernaryLM
+      needs 1.93× less storage (272.6 MB vs. 527.4 MB; 2.58× with 5-per-byte packing) and 5.2× less peak inference memory
+      than FP32 inference, at a 1.37× latency cost on standard kernels. Under a protocol-matched frozen-backbone probe,
+      TernaryLM matches FP32 GLUE transfer to within 0.5 points, with both limited by the narrow pretraining corpus.
+      Per-layer zero-state occupancy is near-uniform (39–41%) and is almost perfectly explained by weight-distribution
+      shape (r = 0.97 with kurtosis), while latent weights progressively concentrate at the quantization threshold.
+      Every result comes from logged single-GPU runs, showing that controlled low-bit language-model research is within
+      reach of modest compute budgets.
+    </p>
+  </section>
+
+  <section id="method">
+    <h2>Method</h2>
+    <p>
+      Every attention and MLP projection keeps a latent FP32 weight \(W\) and its own learnable scale \(\alpha > 0\).
+      On every forward pass, \(W\) is re-quantized with a per-layer threshold:
+    </p>
+    <div class="eq">
+      $$W_q = \alpha \cdot \mathrm{sign}_\tau(W), \qquad
+        \mathrm{sign}_\tau(x) = \begin{cases} +1 & x > \tau \\ 0 & |x| \le \tau \\ -1 & x < -\tau \end{cases}, \qquad
+        \tau = 0.5 \cdot \mathrm{std}(W)$$
+    </div>
+    <p>
+      The backward pass uses the straight-through estimator, \(\partial\mathcal{L}/\partial W \approx \partial\mathcal{L}/\partial W_q\),
+      and \(\alpha\) receives its exact gradient. The untied token embedding and output projection stay in FP32.
+      The <b>FP32 twin</b> used for every comparison is identical, except that its projections are ordinary full-precision
+      linear layers. It uses the same data, data order, schedule and seed.
+    </p>
+    <figure>
+      <img src="static/images/architecture.png" alt="TernaryLM architecture: pipeline and transformer block with ternary projections">
+      <figcaption><b>Architecture.</b> (a) End-to-end pipeline. (b) One pre-norm transformer block; dashed lines are residual
+        connections. All seven projections (blue) are ternary, each with its own scale α. The embedding and the untied output
+        projection (purple) remain FP32. 12 layers, d = 768, 12 heads, SwiGLU with 2,048 hidden units, RoPE, 512-token context,
+        131.8M parameters.</figcaption>
+    </figure>
+  </section>
+
+  <section id="results">
+    <h2>Regularization, not underfitting</h2>
+    <p>
+      A small train/validation gap alone cannot tell regularization apart from underfitting. What does is held-out
+      performance. The FP32 twin fits the training data better, but its validation perplexity bottoms out at 5.58 in
+      epoch 9 and then rises by 6.9%. TernaryLM keeps improving and finishes lower. From epoch 10 onward it beats the
+      FP32 twin at every epoch, including the twin's best epoch.
+    </p>
+    <figure>
+      <img src="static/images/ppl_curves.png" alt="Train and validation perplexity curves for TernaryLM and the FP32 twin">
+      <figcaption><b>Training dynamics.</b> (a) The FP32 twin reaches a lower training perplexity but a larger
+        train/validation gap. (b) Its validation perplexity rises after epoch 9, while TernaryLM's keeps improving.</figcaption>
+    </figure>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Model</th><th>Precision</th><th>Train PPL</th><th>Val PPL ↓</th><th>Best val. (epoch)</th><th>Val/train ↓</th><th>GPU-h</th></tr></thead>
+        <tbody>
+          <tr><td>FP32 twin</td><td>FP32</td><td class="best">2.43</td><td>5.97</td><td>5.58 (9)</td><td>2.46×</td><td>1.10</td></tr>
+          <tr class="ours"><td>TernaryLM (ours)</td><td>1.58-bit</td><td>3.35</td><td>5.52</td><td>5.50 (13)</td><td>1.65×</td><td>1.31</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="tcap">Language modeling on TinyStories: identical data, schedule and seed. Perplexity is computed without label smoothing on the full validation split (4.63M tokens).</p>
+    <div class="note">The margin over the FP32 twin's best epoch is modest (1.4%) and comes from a single seed. Both models share one regularization setting, so a separately tuned FP32 model could narrow the gap.</div>
+  </section>
+
+  <section id="efficiency">
+    <h2>Efficiency, correctly accounted</h2>
+    <p>
+      For inference, each ternary projection is stored as an int8 tensor of codes plus its FP32 α. The weight α·t is
+      materialized inside each layer and fed to a standard GEMM, with no custom kernel. The embedding and output projection
+      (35.6% of parameters) stay FP32, so storage shrinks 1.93×, not the 4× a byte-per-weight count over the whole model would suggest.
+    </p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Model</th><th>Memory (MB) ↓</th><th>Latency (ms/tok) ↓</th><th>Throughput (tok/s) ↑</th><th>Storage (MB) ↓</th></tr></thead>
+        <tbody>
+          <tr><td>FP32 twin</td><td>3,094</td><td class="best">7.87</td><td class="best">127.0</td><td>527.4</td></tr>
+          <tr class="ours"><td>TernaryLM (ours)</td><td>593</td><td>10.78</td><td>92.8</td><td>272.6 <span style="font-weight:400">(204.6 packed)</span></td></tr>
+          <tr><td>TernaryLM vs. FP32</td><td class="best">5.2× less</td><td>1.37× slower</td><td>0.73×</td><td class="best">1.93× less</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="tcap">One NVIDIA L40S, batch 1. Memory is peak allocation during a 512-token forward pass. Latency is the mean time per generated token over 128 tokens after a 384-token prompt, without a KV cache. Storage is the measured on-disk size (int8 codes, unpacked).</p>
+    <div class="note">
+      <b>Caveats.</b> Against an FP16 copy of the twin (263.7 MB), the unpacked int8 export is not smaller. The storage gain over
+      FP16 (1.29×) requires bit-packing. The memory reduction also reflects FP16 compute in the exported model, whereas the
+      FP32 twin runs in FP32. On standard kernels, materializing α·t costs 1.37× latency; ternary kernels would remove this overhead.
+    </div>
+  </section>
+
+  <section id="transfer">
+    <h2>Downstream transfer</h2>
+    <p>
+      Both backbones are frozen and probed with the same logistic-regression classifier on mean-pooled final hidden states.
+      Because the protocol is identical, the comparison isolates the effect of ternarization.
+    </p>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Model</th><th>MRPC F1</th><th>SST-2 Acc</th><th>CoLA MCC</th><th>Avg</th></tr></thead>
+        <tbody>
+          <tr><td>Majority class</td><td>81.22</td><td>50.92</td><td>0.00</td><td>44.05</td></tr>
+          <tr><td>FP32 twin</td><td>81.40</td><td>70.99</td><td>0.00</td><td>50.80</td></tr>
+          <tr class="ours"><td>TernaryLM (ours)</td><td>81.66</td><td>70.53</td><td>0.00</td><td>50.73</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="tcap">GLUE validation results with an identical frozen-backbone linear probe.</p>
+    <p>
+      TernaryLM matches its FP32 twin to within 0.5 points on every task. SST-2 accuracy is 20 points above the majority baseline,
+      but neither probe beats the majority class on CoLA, or clearly on MRPC. The ceiling is set by the narrow TinyStories pretraining, not by quantization.
+    </p>
+  </section>
+
+  <section id="analysis">
+    <h2>What the ternary weights look like</h2>
+    <h3>Zero-state occupancy tracks weight shape</h3>
+    <p>
+      Every block maps 39.4–41.0% of its weights to zero, just above the 38.3% that a Gaussian matrix would give under the
+      same threshold. The small excess is almost fully explained by each layer's weight shape: occupancy correlates
+      with the excess kurtosis of its latent weights at r = 0.97. With a per-layer threshold, occupancy therefore measures
+      distribution shape, not sensitivity to quantization.
+    </p>
+    <figure>
+      <img src="static/images/layer_sparsity.png" alt="Per-block zero-state fraction and its correlation with kurtosis">
+      <figcaption><b>Layer-wise zero-state occupancy.</b> (a) Per-block zero fraction (mean and min–max over seven projections)
+        against the Gaussian reference. (b) Across blocks, occupancy is almost linearly predicted by excess kurtosis.</figcaption>
+    </figure>
+    <h3>Latent weights pile up at the threshold</h3>
+    <p>
+      During training, the latent weights do not collapse onto three clusters. Instead, sharp peaks form exactly at ±τ.
+      The share of weights within ±0.05 std of the threshold nearly doubles, from 7.5% to 13.6% (Gaussian: about 7%). This is
+      consistent with straight-through updates oscillating around the decision boundary.
+    </p>
+    <figure>
+      <img src="static/images/weight_distribution.png" alt="Latent weight distributions at epochs 1, 5, 10 and 15">
+      <figcaption><b>Weight dynamics.</b> Latent weights of block 6's W<sub>down</sub> at epochs 1, 5, 10 and 15. Dotted lines mark ±τ.</figcaption>
+    </figure>
+  </section>
+
+  <section id="samples">
+    <h2>Generation samples</h2>
+    <p>Both models get the same prompt and use nucleus sampling (p = 0.9, temperature 0.8). The first sample from each is shown
+      verbatim; the tokenizer is lower-case only.</p>
+    <div class="samples">
+      <div class="sample t"><div class="tag">TernaryLM (1.58-bit)</div>
+        <p>once upon a time, there was a little girl named lily. she loved to play outside and explore the world around her. one day, she saw a beautiful butterfly and wanted to catch it. she ran after it, but it flew away. lily ' s mom came outside and asked, " what are you doing, lily? " " i want to catch the butterfly, but i ' m scared it might fly away, " lily said. " don ' t</p></div>
+      <div class="sample f"><div class="tag">FP32 twin</div>
+        <p>once upon a time, there was a little girl named lily. she loved to play outside and explore the world around her. one day, she saw a bird flying high in the sky and she wanted to learn more about it. so, she asked her mommy if she could go closer to the bird. her mommy said yes and lily went closer to the bird. she saw that the bird was very pretty and had bright colors. she learned that the bird was a</p></div>
+    </div>
+  </section>
+
+  <section id="limitations">
+    <h2>Limitations</h2>
+    <ul class="lim">
+      <li>One seed per model, on one narrow, synthetic corpus (TinyStories), at 132M parameters and 12.9M training tokens.</li>
+      <li>The FP32 twin shares the ternary model's regularization settings and was not tuned separately.</li>
+      <li>Frozen-probe GLUE transfer is weak for both precisions.</li>
+      <li>No matched BitNet b1.58 (absmean) baseline and no ablations of the design choices.</li>
+      <li>Storage is unpacked, and latency is higher than FP32 without ternary kernels.</li>
+    </ul>
+    <div class="callout">
+      <b>Relevance to resource-constrained research.</b> Each run took 1.1–1.3 hours on a single GPU. Controlled low-bit
+      language-model experiments like these are reproducible without industrial compute.
+    </div>
+  </section>
+
+  <section id="citation">
+    <h2>Citation</h2>
+    <div class="bib" id="bibtex"><button class="copy" type="button" onclick="copyBib(this)">Copy</button>@inproceedings{nargund2026ternarylm,
+  title     = {TernaryLM: Memory-Efficient Language Modeling via Native 1.5-Bit
+               Quantization with Adaptive Layer-wise Scaling},
+  author    = {Nargund, Nisharg and Shukla, Priyesh},
+  booktitle = {GlobalSouthAI Workshop at the 40th Conference on
+               Neural Information Processing Systems (NeurIPS)},
+  year      = {2026}
+}</div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">© 2026 Nisharg Nargund and Priyesh Shukla · GlobalSouthAI Workshop @ NeurIPS 2026</div>
+</footer>
+
+<script>
+  function copyBib(btn) {
+    var text = document.getElementById("bibtex").innerText.replace(/^Copy\s*/, "");
+    var done = function () { btn.textContent = "Copied"; setTimeout(function () { btn.textContent = "Copy"; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () {});
+    } else {
+      var t = document.createElement("textarea"); t.value = text; document.body.appendChild(t); t.select();
+      try { document.execCommand("copy"); done(); } catch (e) {} document.body.removeChild(t);
+    }
+  }
+</script>
+</body>
+</html>
