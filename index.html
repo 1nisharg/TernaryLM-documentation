@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>TernaryLM: Native 1.58-bit Language Modeling</title>
+  <title>TernaryLM: Native 1.5-Bit Language Modeling</title>
   <meta name="description" content="TernaryLM: Memory-Efficient Language Modeling via Native 1.5-Bit Quantization with Adaptive Layer-wise Scaling. GlobalSouthAI Workshop @ NeurIPS 2026.">
   <meta property="og:title" content="TernaryLM: Memory-Efficient Language Modeling via Native 1.5-Bit Quantization">
   <meta property="og:description" content="A 132M-parameter transformer trained natively with ternary weights on a single GPU in 1.3 GPU-hours. GlobalSouthAI @ NeurIPS 2026.">
-  <meta property="og:image" content="images/ppl_curves.png">
+  <meta property="og:image" content="https://1nisharg.github.io/TernaryLM-documentation/images/ppl_curves.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
@@ -94,6 +94,24 @@
     .sample.t .tag { color: var(--green); } .sample.f .tag { color: var(--grey); }
     .sample p { font-family: "Source Serif 4", Georgia, serif; font-style: italic; font-size: 15.5px; color: #333; margin: 0; }
 
+    /* ---------- edge (Raspberry Pi) ---------- */
+    .stat .v.sm { font-size: 26px; }
+    .setup { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0 6px; }
+    .setup div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+    .setup b { display: block; font-size: 12px; color: var(--faint); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+    .bars { margin: 18px 0 6px; border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+    .bars h3 { margin: 0 0 12px; font-size: 15px; }
+    .bar { display: grid; grid-template-columns: 170px 1fr 80px; align-items: center; gap: 12px; margin: 8px 0; font-size: 14px; }
+    .bar .track { background: var(--panel); border-radius: 6px; height: 22px; overflow: hidden; }
+    .bar .fill { height: 100%; border-radius: 6px; background: #b7bdc4; }
+    .bar.t .fill { background: var(--green); }
+    .bar .num { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+    .bar.t .num, .bar.t .lbl { color: var(--green); font-weight: 600; }
+    .story { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; margin: 14px 0;
+             font: 14px/1.6 "JetBrains Mono", ui-monospace, monospace; white-space: pre-wrap; color: #333; }
+    .story .pr { color: var(--green); font-weight: 700; }
+    .story .end { color: var(--faint); }
+
     ul.lim { padding-left: 20px; margin: 0; } ul.lim li { margin-bottom: 6px; }
 
     /* ---------- bibtex ---------- */
@@ -108,6 +126,8 @@
     @media (max-width: 760px) {
       .stats { grid-template-columns: repeat(2, 1fr); }
       .samples { grid-template-columns: 1fr; }
+      .setup { grid-template-columns: repeat(2, 1fr); }
+      .bar { grid-template-columns: 110px 1fr 64px; font-size: 13px; }
       header.hero { padding-top: 44px; }
       .authors span { display: block; margin: 2px 0; }
     }
@@ -143,7 +163,7 @@
 
 <nav class="toc" aria-label="Sections">
   <div class="wrap">
-    <a href="#abstract">Abstract</a><a href="#method">Method</a><a href="#results">Results</a><a href="#efficiency">Efficiency</a>
+    <a href="#abstract">Abstract</a><a href="#method">Method</a><a href="#results">Results</a><a href="#efficiency">Efficiency</a><a href="#edge">Edge (Raspberry Pi)</a>
     <a href="#transfer">Transfer</a><a href="#analysis">Analysis</a><a href="#samples">Samples</a><a href="#limitations">Limitations</a><a href="#citation">Citation</a>
   </div>
 </nav>
@@ -153,7 +173,8 @@
   <div class="tldr">
     <b>TL;DR.</b> We train a 132M-parameter language model <i>natively</i> with ternary weights {−1, 0, +1} on a single GPU
     in about 1.3 GPU-hours. Under identical settings, it generalizes better than its full-precision twin and needs
-    far less storage and memory.
+    far less storage and memory. The same model runs fully offline on a <b>Raspberry Pi 4</b>: a 68.5 MiB file generating
+    70 tokens/s, <a href="#edge">8.2× faster than its FP32 twin</a>.
   </div>
 
   <div class="stats">
@@ -260,6 +281,63 @@
       FP16 (1.29×) requires bit-packing. The memory reduction also reflects FP16 compute in the exported model, whereas the
       FP32 twin runs in FP32. On standard kernels, materializing α·t costs 1.37× latency; ternary kernels would remove this overhead.
     </div>
+  </section>
+
+  <section id="edge">
+    <h2>On the edge: TernaryLM on a Raspberry Pi 4</h2>
+    <p>
+      We ran the camera-ready TernaryLM, with the same weights as the paper and no retraining, fully offline on a
+      Raspberry Pi 4 using <a href="https://github.com/ggml-org/llama.cpp" target="_blank" rel="noopener">llama.cpp</a>.
+      The ternary projections are stored in llama.cpp's TQ2_0 format (2.06 bits per weight), which is lossless for
+      ternary codes. Each comparison model is the FP32 twin, run at full precision and as a standard 4-bit (Q4_K_M)
+      copy.
+    </p>
+    <div class="setup">
+      <div><b>Board</b>Raspberry Pi 4, 4 GB</div>
+      <div><b>CPU</b>4× Cortex-A72, 4 threads</div>
+      <div><b>Runtime</b>llama.cpp, CPU only</div>
+      <div><b>Network</b>None needed (offline)</div>
+    </div>
+
+    <div class="stats" style="margin-top:18px">
+      <div class="stat"><div class="v sm">68.5 MiB</div><div class="k">model file</div><div class="s">7.3× smaller than FP32</div></div>
+      <div class="stat"><div class="v sm">107 MB</div><div class="k">peak RAM while generating</div><div class="s">5.1× less than FP32</div></div>
+      <div class="stat"><div class="v sm">70 tok/s</div><div class="k">generation speed</div><div class="s">8.2× faster than FP32</div></div>
+      <div class="stat"><div class="v sm">4.446</div><div class="k">perplexity on the Pi</div><div class="s">lowest of all three</div></div>
+    </div>
+
+    <div class="bars" role="img" aria-label="Generation speed on Raspberry Pi 4: TernaryLM 70.0, FP32 twin 4-bit 49.8, FP32 twin 8.5 tokens per second">
+      <h3>Generation speed on a Raspberry Pi 4 (tokens/s, higher is better)</h3>
+      <div class="bar t"><span class="lbl">TernaryLM (1.58-bit)</span><div class="track"><div class="fill" style="width:100%"></div></div><span class="num">70.0</span></div>
+      <div class="bar"><span class="lbl">FP32 twin, 4-bit</span><div class="track"><div class="fill" style="width:71.1%"></div></div><span class="num">49.8</span></div>
+      <div class="bar"><span class="lbl">FP32 twin, FP32</span><div class="track"><div class="fill" style="width:12.1%"></div></div><span class="num">8.5</span></div>
+    </div>
+
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Model</th><th>File (MiB) ↓</th><th>Peak RAM (MB) ↓</th><th>Generation (tok/s) ↑</th><th>Prompt (tok/s) ↑</th><th>Perplexity ↓</th></tr></thead>
+        <tbody>
+          <tr class="ours"><td>TernaryLM, TQ2_0 (1.58-bit)</td><td>68.5</td><td>107</td><td>70.0</td><td>217.9</td><td>4.446</td></tr>
+          <tr><td>FP32 twin, Q4_K_M (4-bit)</td><td>79.7</td><td>118</td><td>49.8</td><td>136.2</td><td>4.756</td></tr>
+          <tr><td>FP32 twin, F32</td><td>502.9</td><td>542</td><td>8.5</td><td>81.2</td><td>4.746</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="tcap">Raspberry Pi 4 (4 GB), llama.cpp, 4 threads. Speed: llama-bench, 64-token prompt and 64-token generation, mean of
+      3 runs. Peak RAM: maximum resident memory while generating 128 tokens. Perplexity: llama-perplexity on the first 1,000
+      TinyStories validation stories (512-token windows, scored on the second half of each window), so values are lower than the
+      full-split numbers above. The ranking and the gap are the same.</p>
+
+    <div class="callout">
+      <b>Smaller, faster and more accurate than even the 4-bit model.</b> Against the FP32 twin compressed to standard 4-bit,
+      TernaryLM generates <b>1.4× faster</b>, processes prompts <b>1.6× faster</b>, and has a <b>14% smaller</b> file,
+      <b>9% less</b> RAM and <b>6.5% lower</b> perplexity. On the Pi, perplexity matches the cloud run to within 0.003, so the
+      edge model is exactly the paper's model.
+    </div>
+
+    <h3>A story generated on the Pi</h3>
+    <p>TernaryLM TQ2_0 on the Raspberry Pi 4, copied verbatim (temperature 0.8, top-p 0.9). The model ends the story on its own.</p>
+    <div class="story"><span class="pr">once upon a time , there was a little girl named lily .</span> she loved to draw and color with her markers . one day , she was drawing a picture of a big sun in the sky . but then , she saw a big , scary monster ! lily was scared and didn ' t know what to do . her mom came into the room and asked , " what ' s wrong , lily ? " lily showed her the scary monster and said , " don ' t worry , i ' ll make it up to you . " her mom smiled and said , " thank you , lily . you are very brave . " lily felt better and continued to draw with her markers . when she was finished , she showed it to her mom . her mom said , " wow , lily ! that ' s so cool ! thank you for helping me . " lily felt happy and proud of herself . <span class="end">[end of text]</span></div>
   </section>
 
   <section id="transfer">
